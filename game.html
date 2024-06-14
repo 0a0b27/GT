@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>コマンドアクションゲーム</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .hp-container {
+            width: 100%;
+            border: 1px solid #000;
+            background-color: #ddd;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .hp-bar {
+            height: 20px;
+            background-color: green;
+            width: 100%;
+            transition: width 0.5s;
+        }
+        .hp-label {
+            position: absolute;
+            top: 0;
+            left: 10px;
+            color: white;
+        }
+        #game-log {
+            white-space: pre-wrap;
+            border: 1px solid #000;
+            padding: 10px;
+            height: 300px;
+            overflow-y: scroll;
+            background-color: #f0f0f0;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>コマンドアクションゲーム</h1>
+
+    <!-- ステージ選択画面 -->
+    <div id="stage-selection">
+        <h2>ステージを選択してください</h2>
+        <button onclick="startGame()">ステージ1</button>
+        <!-- 追加のステージはここに -->
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="game-screen" class="hidden">
+        <div class="hp-container">
+            <div id="player-hp" class="hp-bar"></div>
+            <span class="hp-label">勇者</span>
+        </div>
+        <div class="hp-container">
+            <div id="enemy-hp" class="hp-bar"></div>
+            <span class="hp-label">モンスター</span>
+        </div>
+        <div id="game-log"></div>
+        <button onclick="submitCommand('attack')">攻撃</button>
+        <button onclick="submitCommand('defend')">防御</button>
+        <button onclick="submitCommand('heal')">回復</button>
+    </div>
+
+    <script>
+        // プレイヤーと敵の初期ステータス
+        let player = {
+            name: "勇者",
+            hp: 100,
+            maxHp: 100,
+            attack: 10,
+            defense: 5,
+            heal: 15,
+            level: 1,
+            experience: 0,
+            expToNextLevel: 100
+        };
+
+        let enemy = {
+            name: "モンスター",
+            hp: 100,
+            maxHp: 100,
+            attack: 8,
+            defense: 3
+        };
+
+        const criticalRate = 1 / 24; // 急所率
+
+        // ゲームのログエリア
+        const gameLog = document.getElementById("game-log");
+
+        // HPバー
+        const playerHpBar = document.getElementById("player-hp");
+        const enemyHpBar = document.getElementById("enemy-hp");
+
+        // ステージ選択画面とゲーム画面のDOM要素
+        const stageSelection = document.getElementById("stage-selection");
+        const gameScreen = document.getElementById("game-screen");
+
+        // HPバーを更新する関数
+        function updateHpBars() {
+            updateHpBar(playerHpBar, player.hp, player.maxHp);
+            updateHpBar(enemyHpBar, enemy.hp, enemy.maxHp);
+        }
+
+        // HPバーの色を更新する関数
+        function updateHpBar(bar, hp, maxHp) {
+            let percent = (hp / maxHp) * 100;
+            bar.style.width = percent + "%";
+            if (percent < 20) {
+                bar.style.backgroundColor = "#ff0000"; // 赤色
+            } else if (percent < 50) {
+                bar.style.backgroundColor = "#ffff00"; // 黄色
+            } else {
+                bar.style.backgroundColor = "#008000"; // 緑色
+            }
+        }
+
+        // ログを追加する関数
+        function addLog(message) {
+            gameLog.textContent += message + "\n";
+            gameLog.scrollTop = gameLog.scrollHeight;
+        }
+
+        // プレイヤーのコマンド処理
+        function submitCommand(command) {
+            switch (command) {
+                case "attack":
+                    playerAttack();
+                    break;
+                case "defend":
+                    playerDefend();
+                    break;
+                case "heal":
+                    playerHeal();
+                    break;
+                default:
+                    addLog("無効なコマンドです。");
+                    return;
+            }
+            enemyTurn();
+            checkGameOver();
+            updateHpBars();
+        }
+
+        // プレイヤーの攻撃処理
+        function playerAttack() {
+            let critical = Math.random() < criticalRate;
+            let damage = Math.max(0, Math.floor(Math.random() * player.attack) + 1 - enemy.defense);
+            if (critical) {
+                damage = Math.floor(damage * 1.5);
+                addLog(`${player.name}は急所に当てた！`);
+            }
+            enemy.hp = Math.max(0, enemy.hp - damage);
+            addLog(`${player.name}は${enemy.name}に${damage}のダメージを与えた！`);
+            gainExperience(damage * 10); // ダメージ量に基づいて経験値を取得
+        }
+
+        // プレイヤーの防御処理
+        function playerDefend() {
+            addLog(`${player.name}は身を守っている！`);
+        }
+
+        // プレイヤーの回復処理
+        function playerHeal() {
+            player.hp = Math.min(player.maxHp, player.hp + player.heal);
+            addLog(`${player.name}は${player.heal}回復した！`);
+        }
+
+        // 敵のターン処理
+        function enemyTurn() {
+            let action = Math.floor(Math.random() * 2);
+            switch (action) {
+                case 0:
+                    enemyAttack();
+                    break;
+                case 1:
+                    enemyDefend();
+                    break;
+            }
+        }
+
+        // 敵の攻撃処理
+        function enemyAttack() {
+            let damage = Math.max(0, Math.floor(Math.random() * enemy.attack) + 1 - player.defense);
+            player.hp = Math.max(0, player.hp - damage);
+            addLog(`${enemy.name}は${player.name}に${damage}のダメージを与えた！`);
+        }
+
+        // 敵の防御処理
+        function enemyDefend() {
+            addLog(`${enemy.name}は身を守っている！`);
+        }
+
+        // ゲームオーバーのチェック
+        function checkGameOver() {
+            if (player.hp <= 0) {
+                addLog(`${player.name}は倒れた... ゲームオーバー！`);
+                disableCommands();
+            } else if (enemy.hp <= 0) {
+                addLog(`${enemy.name}を倒した！ 勝利！`);
+                levelUp(); // レベルアップ処理を追加
+                reward(); // 報酬を獲得
+                resetEnemy(); // 敵をリセットして再戦
+            }
+        }
+
+        // コマンドを無効にする
+        function disableCommands() {
+            document.querySelectorAll("button").forEach(button => button.disabled = true);
+        }
+
+        // コマンドを有効にする
+        function enableCommands() {
+            document.querySelectorAll("button").forEach(button => button.disabled = false);
+        }
+
+        // 経験値を取得する関数
+        function gainExperience(exp) {
+            player.experience += exp;
+            addLog(`${exp}の経験値を得た！`);
+            if (player.experience >= player.expToNextLevel) {
+                player.experience -= player.expToNextLevel;
+                levelUp();
+            }
+        }
+
+        // レベルアップ処理
+        function levelUp() {
+            player.level++;
+            player.maxHp += 20;
+            player.hp = player.maxHp;
+            player.attack += 5;
+            player.defense += 2;
+            player.expToNextLevel = Math.floor(player.expToNextLevel * 1.5);
+            addLog(`${player.name}はレベル${player.level}に上がった！`);
+        }
+
+        // 報酬獲得処理
+        function reward() {
+            // 報酬のロジックをここに追加
+            addLog("報酬を獲得しました！");
+        }
+
+        // 敵のリセット処理
+        function resetEnemy() {
+            enemy.hp = enemy.maxHp;
+            addLog(`${enemy.name}が再び現れた！`);
+            enableCommands();
+        }
+
+        // ゲームを開始する関数
+        function startGame() {
+            stageSelection.classList.add("hidden");
+            gameScreen.classList.remove("hidden");
+            addLog("ゲーム開始！ コマンドを選択してください：'攻撃', '防御', '回復'");
+            updateHpBars();
+        }
+    </script>
+</body>
+</html>
